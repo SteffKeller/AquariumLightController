@@ -1,0 +1,6 @@
+{
+    "sketch": "LightController.ino",
+    "board": "esp32:esp32:m5stack-atom",
+    "port": "COM3",
+    "configuration": "PartitionScheme=no_ota,UploadSpeed=115200,DebugLevel=none"
+}
