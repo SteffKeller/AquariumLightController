@@ -3,6 +3,10 @@
   Complete project details at https://randomnerdtutorials.com  
 *********/
 
+
+// Compile SPIFFS & upload
+//Plaform.io cli ->
+// pio run --target uploadfs
 // Import required libraries
 #include "WiFi.h"
 #include "ESPAsyncWebServer.h"

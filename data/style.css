@@ -13,7 +13,7 @@ html {
   }
   .button {
     display: inline-block;
-    background-color: #008CBA;
+    background-color: #16ba00;
     border: none;
     border-radius: 4px;
     color: white;
@@ -24,6 +24,6 @@ html {
     cursor: pointer;
   }
   .button2 {
-    background-color: #f44336;
+    background-color: #f4a236;
   }
   
