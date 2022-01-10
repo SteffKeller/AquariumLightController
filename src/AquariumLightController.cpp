@@ -1,13 +1,13 @@
 /*********
-  Rui Santos
-  Complete project details at https://randomnerdtutorials.com  
+  Stefan Keller 2022/01
+  based on the tutorial of Rui Santos https://randomnerdtutorials.com  
 *********/
 
 // Compile SPIFFS & upload
-//Plaform.io cli ->
+// Plaform.io cli ->
 // pio run --target uploadfs
-// Import required libraries
 
+// Import required libraries
 #include <Arduino.h>
 #include "WiFi.h"
 #include "ESPAsyncWebServer.h"
