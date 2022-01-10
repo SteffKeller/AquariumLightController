@@ -5,4 +5,5 @@
         "target/esp32.cfg"
     ],
     "C_Cpp.autocompleteAddParentheses": true
+    
 }

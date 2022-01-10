@@ -1,15 +1,41 @@
 <!DOCTYPE html>
 <html>
+
 <head>
-  <title>ESP32 Web Server</title>
+  <title>Steffs Aquarium light controller</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet"
+    integrity="sha384-1BmE4kWBq78iYhFldvKuhfTAU6auU8tT94WrHftjDbrCEXSU1oBoqyl2QvZ6jIW3" crossorigin="anonymous">
   <link rel="icon" href="data:,">
   <link rel="stylesheet" type="text/css" href="style.css">
+
 </head>
+
 <body>
-  <h1>ESP32 Web Server</h1>
+  <h1>Steffs Aquarium light controller</h1>
   <p>GPIO state: <strong> %STATE%</strong></p>
   <p><a href="/on"><button class="button">ON</button></a></p>
   <p><a href="/off"><button class="button button2">OFF</button></a></p>
+
+  <!-- <p> <label for="l1on">Light 1 on time:</label></p>
+<p><a href="/l1on"><input type="time" id="l1on" name="l1on"></a></p>
+<br> -->
+  <p> <label for="l1off">Light 1 off time:</label>
+    <input type="time" id="l1off" name="l1off">
+  </p>
+
+
+  <form action="/get">
+    l1on:
+    <input type="time" name="l1on">
+    <input type="submit" value="Submit">
+  </form>
+
+  <form action="/get">
+    input3: <input type="text" name="input3">
+    <input type="submit" value="Submit">
+  </form>
+
 </body>
+
 </html>
