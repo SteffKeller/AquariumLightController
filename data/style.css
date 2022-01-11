@@ -8,6 +8,12 @@ html {
     color: #0F3376;
     padding: 2vh;
   }
+  .withBorder{
+    border-style: solid;
+    border-radius: 50px;
+   border-width: 3px; 
+   border-color: rgb(95, 94, 94);
+  }
   p{
     font-size: 1.5rem;
   }
@@ -25,5 +31,25 @@ html {
   }
   .button2 {
     background-color: #f4a236;
+  }
+
+  .wrapper {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-gap: 10px;
+    grid-auto-rows: minmax(100px, auto);
+  }
+  .one {
+    grid-column: 2 / 3;
+    /* grid-row: 1; */
+  }
+  .two {
+    grid-column: 2 / 4;
+    /* grid-row: 1 / 3; */
+  }
+  .three {
+    grid-column: 2 / 3;
+    /* grid-row: 2 / 5; */
+    min-width: 10;
   }
   

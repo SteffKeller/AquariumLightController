@@ -4,5 +4,9 @@
         "interface/ftdi/esp32_devkitj_v1.cfg",
         "target/esp32.cfg"
     ],
-    "C_Cpp.autocompleteAddParentheses": true
+    "C_Cpp.autocompleteAddParentheses": true,
+    "files.associations": {
+        "*.tcc": "cpp",
+        "functional": "cpp"
+    }
 }
