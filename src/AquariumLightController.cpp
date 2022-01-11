@@ -61,6 +61,7 @@ uint8_t DisBuff[4 + 25 * 3]; //Used to store RBG color values
 //Declaration
 String processor(const String &var);
 void setBuff(uint8_t Rdata, uint8_t Gdata, uint8_t Bdata); //Set the colors of LED, and save the relevant data to DisBuff[].
+String stateToString(ControllerState state);               //Convert the state to an string to display o
 
 void setup()
 {
@@ -182,36 +183,23 @@ String processor(const String &var)
   Serial.println(var);
   if (var == "L1ON")
   {
-    Serial.println("get l1on:" + light1.mOnTime);
     return light1.mOnTime;
   }
   if (var == "L1OFF")
   {
-    Serial.println("get l1off:" + light1.mOffTime);
     return light1.mOffTime;
   }
   if (var == "ACTUALTIME")
   {
-    Serial.println("actual time:" + acutalTime);
     return acutalTime;
+  }
+  if (var == "LIGHT1STATE")
+  {
+    return stateToString(static_cast<ControllerState>(light1.getState()));
   }
   if (var == "CONTROLLERSTATE")
   {
-    switch (fsmState)
-    {
-    case ControllerState::on:
-      return "ON";
-      break;
-    case ControllerState::off:
-      return "OFF";
-      break;
-    case ControllerState::automatic:
-      return "AUTO";
-      break;
-    default:
-      return "unknown";
-      break;
-    }
+    return stateToString(fsmState);
   }
 
   return String();
@@ -221,10 +209,29 @@ void setBuff(uint8_t Rdata, uint8_t Gdata, uint8_t Bdata)
 { //Set the colors of LED, and save the relevant data to DisBuff[].
   // DisBuff[0] = 0x00;
   // DisBuff[1] = 0x00;
-  for (int i = 0; i < 27; i++)
+  for (int i = 0; i < 25; i++)
   {
     DisBuff[i * 3 + 0] = Rdata;
     DisBuff[i * 3 + 1] = Gdata;
     DisBuff[i * 3 + 2] = Bdata;
+  }
+}
+
+String stateToString(ControllerState state)
+{
+  switch (state)
+  {
+  case ControllerState::on:
+    return "ON";
+    break;
+  case ControllerState::off:
+    return "OFF";
+    break;
+  case ControllerState::automatic:
+    return "AUTO";
+    break;
+  default:
+    return "unknown";
+    break;
   }
 }
