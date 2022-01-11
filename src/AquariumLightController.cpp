@@ -12,12 +12,14 @@
 #include "WiFi.h"
 #include "ESPAsyncWebServer.h"
 #include "SPIFFS.h"
+#include "M5Atom.h"
 
 //NTP
 #include <NTPClient.h>
 #include <WiFiUdp.h>
 WiFiUDP ntpUDP;
-NTPClient timeClient(ntpUDP);
+NTPClient timeClient(ntpUDP, +1);
+String l1onTime, acutalTime;
 
 // Replace with your network credentials
 const char *ssid = "diveintothenet";
@@ -34,40 +36,23 @@ AsyncWebServer server(80);
 //Form Inputs
 const char *PARAM_INPUT_3 = "input3";
 const char *PARAM_L1ON = "l1on";
+const char *PARAM_L1OFF = "l1off";
+const char *PARAM_L2ON = "l2on";
+const char *PARAM_L2OFF = "l2off";
+const char *PARAM_MLON = "mlon";
+const char *PARAM_MLOFF = "mloff";
+
+//Display
+uint8_t DisBuff[2 + 5 * 5 * 3]; //Used to store RBG color values
 
 //Declaration
 String processor(const String &var);
-
-// Replaces placeholder with LED state value
-String processor(const String &var)
-{
-  Serial.println(var);
-  if (var == "STATE")
-  {
-    if (digitalRead(ledPin))
-    {
-      ledState = "ON";
-    }
-    else
-    {
-      ledState = "OFF";
-    }
-    Serial.print(ledState);
-    return ledState;
-  }
-  // if (var == "l1on")
-  // {
-  //   Serial.print(var);
-  //   return var;
-  // }
-
-  return String();
-}
+void setBuff(uint8_t Rdata, uint8_t Gdata, uint8_t Bdata); //Set the colors of LED, and save the relevant data to DisBuff[].
 
 void setup()
 {
   // Serial port for debugging purposes
-  Serial.begin(115200);
+  // Serial.begin(115200);
   pinMode(ledPin, OUTPUT);
 
   // Initialize SPIFFS
@@ -76,6 +61,11 @@ void setup()
     Serial.println("An Error has occurred while mounting SPIFFS");
     return;
   }
+  //Init Atom-Matrix(Initialize serial port, LED).
+  M5.begin(true, false, true);
+  delay(10); //delay10ms.  延迟10ms
+  setBuff(0xff, 0x00, 0x00);
+  M5.dis.displaybuff(DisBuff);
 
   // Connect to Wi-Fi
   WiFi.begin(ssid, password);
@@ -85,12 +75,10 @@ void setup()
     Serial.println("Connecting to WiFi..");
   }
 
+  timeClient.setTimeOffset(2);
+
   // Print ESP32 Local IP Address
   Serial.println(WiFi.localIP());
-
-  // get ntp time
-  timeClient.update();
-  Serial.println(timeClient.getFormattedTime());
 
   // Route for root / web page
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
@@ -113,15 +101,6 @@ void setup()
               digitalWrite(ledPin, LOW);
               request->send(SPIFFS, "/index.html", String(), false, processor);
             });
-
-  // Route to set l1on
-  // server.on("/l1on", HTTP_GET, [](AsyncWebServerRequest *request)
-  //           {
-  //             Serial.println("l1on print");
-  //             timeClient.update();
-  //             Serial.println(timeClient.getFormattedTime());
-  //             request->send(SPIFFS, "/index.html", String(), false, processor);
-  //           });
 
   // Send a GET request to <ESP_IP>/get?input1=<inputMessage>
   server.on("/get", HTTP_GET, [](AsyncWebServerRequest *request)
@@ -154,4 +133,91 @@ void setup()
 
 void loop()
 {
+  uint8_t FSM = 0; //Store the number of key presses.
+
+  // delay(1000);
+  // get ntp time
+  timeClient.setTimeOffset(5);
+  timeClient.update();
+  acutalTime = timeClient.getFormattedTime();
+  // Serial.println(timeClient.getFormattedTime());
+
+  if (M5.Btn.wasPressed())
+  { //Check if the key is pressed.
+    switch (FSM)
+    {
+    case 0:
+      setBuff(0x40, 0x00, 0x00);
+      break;
+    case 1:
+      setBuff(0x00, 0x40, 0x00);
+      break;
+    case 2:
+      setBuff(0x00, 0x00, 0x40);
+      break;
+    case 3:
+      setBuff(0x20, 0x20, 0x20);
+      break;
+    default:
+      break;
+
+      M5.dis.displaybuff(DisBuff);
+      Serial.println("state" + FSM);
+      FSM++;
+      if (FSM >= 4)
+      {
+        FSM = 0;
+      }
+    }
+    // delay(50);
+    M5.update(); //Read the press state of the key.
+  }
+}
+/**
+ * @brief Process input messages values for display
+ * 
+ * @param var Message
+ * @return String preceed value for message
+ */
+String processor(const String &var)
+{
+  Serial.println(var);
+  if (var == "STATE")
+  {
+    if (digitalRead(ledPin))
+    {
+      ledState = "ON";
+    }
+    else
+    {
+      ledState = "OFF";
+    }
+    Serial.print(ledState);
+    return ledState;
+  }
+  if (var == "L1ON")
+  {
+    // l1onTime = timeClient.getFormattedTime();
+    Serial.println("get l1on:" + l1onTime);
+    return l1onTime;
+  }
+  if (var == "ACTUALTIME")
+  {
+    Serial.println("actual time:" + acutalTime);
+    return acutalTime;
+  }
+
+  return String();
+}
+
+void setBuff(uint8_t Rdata, uint8_t Gdata, uint8_t Bdata)
+{ //Set the colors of LED, and save the relevant data to DisBuff[].
+  DisBuff[0] = 0x05;
+  DisBuff[1] = 0x05;
+  for (int i = 0; i < 25; i++)
+  {
+    DisBuff[2 + i * 3 + 0] = Rdata;
+    DisBuff[2 + i * 3 + 1] = Gdata;
+    DisBuff[2 + i * 3 + 2] = Bdata;
+  }
 }

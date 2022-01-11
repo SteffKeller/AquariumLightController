@@ -8,14 +8,18 @@
     integrity="sha384-1BmE4kWBq78iYhFldvKuhfTAU6auU8tT94WrHftjDbrCEXSU1oBoqyl2QvZ6jIW3" crossorigin="anonymous">
   <link rel="icon" href="data:,">
   <link rel="stylesheet" type="text/css" href="style.css">
+  <meta http-equiv="refresh" content="5">
 
 </head>
 
 <body>
   <h1>Steffs Aquarium light controller</h1>
+  <p><span id="actualTime">aktuelle Uhrzeit: %ACTUALTIME%</span></p>
   <p>GPIO state: <strong> %STATE%</strong></p>
   <p><a href="/on"><button class="button">ON</button></a></p>
   <p><a href="/off"><button class="button button2">OFF</button></a></p>
+
+
 
   <!-- <p> <label for="l1on">Light 1 on time:</label></p>
 <p><a href="/l1on"><input type="time" id="l1on" name="l1on"></a></p>
@@ -24,10 +28,9 @@
     <input type="time" id="l1off" name="l1off">
   </p>
 
-
   <form action="/get">
     l1on:
-    <input type="time" name="l1on" value="23:45">
+    <input type="time" name="l1on" value="%L1ON%">
     <input type="submit" value="Submit">
   </form>
 
