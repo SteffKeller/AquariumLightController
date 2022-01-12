@@ -15,6 +15,7 @@
 #include "M5Atom.h"
 #include "LightImpl.hpp"
 #include "time.h"
+#include "FastLED.h"
 
 //NTP
 #include <NTPClient.h>
@@ -28,6 +29,12 @@ const char *ssid = "diveintothenet";
 const char *password = "dtn24steffshome67L";
 
 // Set LED GPIO
+#define P9813_C_PIN 21
+#define P9813_D_PIN 25
+#define P9813_NUM_LEDS 1
+// This is an array of leds.  One item for each led in your strip.
+CRGB leds[P9813_NUM_LEDS];
+
 const int ledPin = 2;
 // Stores LED state
 String ledState;
@@ -84,6 +91,9 @@ void setup()
   setBuff(0xff, 0x00, 0x00);
   M5.dis.displaybuff(DisBuff);
 
+  // Init LED outputs
+  FastLED.addLeds<P9813, P9813_D_PIN, P9813_C_PIN, RGB>(leds, P9813_NUM_LEDS); // BGR ordering is typical
+
   // Connect to Wi-Fi
   WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED)
@@ -135,39 +145,54 @@ void setup()
   // Start server
   server.begin();
 }
+uint8_t bright = 00;
 
 void loop()
 {
-  delay(100);
+  delay(10);
   // get ntp time
   timeClient.setTimeOffset(3600);
   timeClient.update();
   acutalTime = timeClient.getFormattedTime();
 
-  M5.Btn.read();
+  leds[0] = bright++;
+
+  FastLED.setBrightness(255);
+  // FastLED.show();
+  // M5.Btn.read();
   if (M5.Btn.wasPressed())
   {
     //handle state change
     uint8_t state = static_cast<uint8_t>(fsmState);
     ++state > 2 ? state = 0 : state;
     fsmState = static_cast<ControllerState>(state);
-
-    //  do the desired state things
     switch (fsmState)
     {
     case ControllerState::off:
       M5.dis.clear();
+      leds[0] = 0xFFFFFF;
+
       setBuff(0x00, 0x00, 0x00);
       break;
     case ControllerState::on:
+      leds[0] = CRGB::Blue;
+
       setBuff(0x00, 0x40, 0x00);
       break;
     case ControllerState::automatic:
+      leds[0] = CRGB::Red;
+
       setBuff(0x00, 0x00, 0x40);
       break;
     default:
       break;
     }
+    // FastLED.setBrightness(bright += 20);
+    Serial.printf("state %i", static_cast<uint8_t>(fsmState));
+    FastLED.setBrightness(255);
+    FastLED.setDither(DISABLE_DITHER);
+
+    FastLED.show();
     M5.dis.displaybuff(DisBuff);
   }
   M5.update(); //Read the press state of the key.

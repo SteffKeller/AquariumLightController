@@ -7,15 +7,15 @@
 class LightImpl
 {
 private:
-	String _gpioOutput;
+	uint8_t _fastLEDPos;
 	bool _state;
 
 public:
-	LightImpl(String gpioOutput);
+	LightImpl(uint8_t fastLEDPos);
 	LightImpl();
 	~LightImpl();
 
-	void setLightState(bool on);
+	void computeLight();
 	void processTime(String actualTime);
 	void setTimes(String onTime, String offTime, String dimmValueIn);
 	void overrideState(bool overrideOn, bool overrideState);

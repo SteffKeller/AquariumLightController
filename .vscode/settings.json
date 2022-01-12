@@ -7,6 +7,10 @@
     "C_Cpp.autocompleteAddParentheses": true,
     "files.associations": {
         "*.tcc": "cpp",
-        "functional": "cpp"
+        "functional": "cpp",
+        "type_traits": "cpp",
+        "string": "cpp",
+        "sstream": "cpp",
+        "regex": "cpp"
     }
 }
