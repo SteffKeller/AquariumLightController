@@ -18,15 +18,22 @@
 #include "FastLED.h"
 #include "ControllerState.hpp"
 #include "LightToFastLEDConverter.hpp"
+#include <time.h>
+#include <arduino-timer.h>
 
 //NTP
 #include <NTPClient.h>
 #include <WiFiUdp.h>
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP);
-String l1onTime, l1offTime, l2onTime, l2offTime, acutalTime;
+String l1onTime, l1offTime, l2onTime, l2offTime, actualTime;
 
-// Replace with your network credentials
+// Timer
+auto timer10s = timer_create_default();            // create a timer with default settings
+auto timer1s = timer_create_default();             // create a timer with default settings
+auto timerDisplayTimeout = timer_create_default(); // create a timer with default settings
+
+// network credentials
 const char *ssid = "diveintothenet";
 const char *password = "dtn24steffshome67L";
 
@@ -36,7 +43,7 @@ const char *password = "dtn24steffshome67L";
 #define P9813_NUM_LEDS 1
 // This is an array of leds.  One item for each led in your strip.
 CRGB fastLedDummyLed[P9813_NUM_LEDS];
-LighttoFastLEDConverter lightConverter;
+LighttoFastLEDConverter *lightConverter;
 
 const int ledPin = 2;
 // Stores LED state
@@ -65,7 +72,9 @@ uint8_t DisBuff[4 + 25 * 3]; //Used to store RBG color values
 //Declaration
 String webServerProcessor(const String &var);
 void setBuff(uint8_t Rdata, uint8_t Gdata, uint8_t Bdata); //Set the colors of LED, and save the relevant data to DisBuff[].
-String stateToString(ControllerState state);               //Convert the state to an string to display o
+String stateToString(ControllerState state);               //Convert the state to an string to display
+bool timeUpdate(void *);
+bool displayTimeoutCallback(void *);
 
 void setup()
 {
@@ -76,12 +85,11 @@ void setup()
     Serial.println("An Error has occurred while mounting SPIFFS");
     return;
   }
-
   // create the lights
   light1 = LightImpl(0);
   light2 = LightImpl(1);
   lightMl = LightImpl(2);
-  lightConverter = LighttoFastLEDConverter(FastLED, light1, light2, lightMl);
+  lightConverter = new LighttoFastLEDConverter{FastLED, light1, light2, lightMl};
 
   light1.mOnTime = "11:30";
   light1.mOffTime = "22:45";
@@ -95,6 +103,7 @@ void setup()
 
   // Init LED outputs
   FastLED.addLeds<P9813, P9813_D_PIN, P9813_C_PIN, RGB>(fastLedDummyLed, P9813_NUM_LEDS); // BGR ordering is typical
+
   // Connect to Wi-Fi
   WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED)
@@ -103,10 +112,12 @@ void setup()
     Serial.println("Connecting to WiFi..");
   }
 
-  timeClient.setTimeOffset(3600);
-
   // Print ESP32 Local IP Address
   Serial.println(WiFi.localIP());
+
+  // call the toggle_led function every 1000 millis (1 second)
+  timer10s.every(1000, timeUpdate);
+  timerDisplayTimeout.in(10000, displayTimeoutCallback);
 
   // Route for root / web page
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
@@ -116,7 +127,7 @@ void setup()
   server.on("/style.css", HTTP_GET, [](AsyncWebServerRequest *request)
             { request->send(SPIFFS, "/style.css", "text/css"); });
 
-  // Send a GET request to <ESP_IP>/get?input1=<inputMessage>
+  // Send a GET request to <ESP_IP>/get?>
   server.on("/get", HTTP_GET, [](AsyncWebServerRequest *request)
             {
               String inputMessage;
@@ -140,38 +151,34 @@ void setup()
                 inputMessage = "No message sent";
                 inputParam = "none";
               }
+              timerDisplayTimeout.in(10000, timeUpdate);
               Serial.println(inputMessage);
               request->send(100, "/index.html");
             });
   // Start server
   server.begin();
-
-  FastLED.showColor(CRGB::White, 255);
 }
 uint8_t bright = 00;
 
 void loop()
 {
-  delay(10);
+  // tick the timers
+  timer10s.tick();
+  timerDisplayTimeout.tick();
 
-  // get ntp time
-  timeClient.setTimeOffset(3600);
-  timeClient.update();
-  acutalTime = timeClient.getFormattedTime();
+  lightConverter->controlLights(fsmState);
 
-  M5.update(); //Read the press state of the key.
   if (M5.Btn.wasPressed())
   {
     //handle state change
     uint8_t state = static_cast<uint8_t>(fsmState);
     ++state > 2 ? state = 0 : state;
     fsmState = static_cast<ControllerState>(state);
-    fastLedDummyLed[0] = CRGB::White;
+
     switch (fsmState)
     {
     case ControllerState::off:
-      M5.dis.clear();
-      setBuff(0x00, 0x00, 0x00);
+      setBuff(0xAA, 0x00, 0x00);
       break;
     case ControllerState::on:
       setBuff(0x00, 0x40, 0x00);
@@ -182,11 +189,16 @@ void loop()
     default:
       break;
     }
-    lightConverter.controlLights(fsmState);
+    M5.dis.displaybuff(DisBuff);
     Serial.printf("state %i", static_cast<uint8_t>(fsmState));
-    // M5.dis.displaybuff(DisBuff);
+
+    // reset display timeout and set it new
+    timerDisplayTimeout.cancel();
+    timerDisplayTimeout.in(10000, displayTimeoutCallback);
   }
+  M5.update(); //Read the press state of the key.
 }
+
 /**
  * @brief Process input messages values for display
  * 
@@ -206,7 +218,7 @@ String webServerProcessor(const String &var)
   }
   if (var == "ACTUALTIME")
   {
-    return acutalTime;
+    return actualTime;
   }
   if (var == "LIGHT1STATE")
   {
@@ -255,4 +267,23 @@ String stateToString(ControllerState state)
     return "unknown";
     break;
   }
+}
+
+bool timeUpdate(void *)
+{
+  timeClient.setTimeOffset(3600);
+  timeClient.update();
+  actualTime = timeClient.getFormattedTime();
+  Serial.println(actualTime);
+  return true;
+}
+
+bool displayTimeoutCallback(void *)
+{
+  Serial.println("off dis");
+  setBuff(0x00, 0x00, 0x00);
+  M5.dis.displaybuff(DisBuff);
+  M5.dis.clear();
+  M5.dis.setBrightness(0);
+  return false;
 }
