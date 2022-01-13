@@ -16,6 +16,8 @@
 #include "LightImpl.hpp"
 #include "time.h"
 #include "FastLED.h"
+#include "ControllerState.hpp"
+#include "LightToFastLEDConverter.hpp"
 
 //NTP
 #include <NTPClient.h>
@@ -33,7 +35,8 @@ const char *password = "dtn24steffshome67L";
 #define P9813_D_PIN 25
 #define P9813_NUM_LEDS 1
 // This is an array of leds.  One item for each led in your strip.
-CRGB leds[P9813_NUM_LEDS];
+CRGB fastLedDummyLed[P9813_NUM_LEDS];
+LighttoFastLEDConverter lightConverter;
 
 const int ledPin = 2;
 // Stores LED state
@@ -54,19 +57,13 @@ const char *PARAM_L2OFF = "l2off";
 const char *PARAM_MLON = "mlon";
 const char *PARAM_MLOFF = "mloff";
 
-enum ControllerState
-{
-  off = 0,
-  automatic,
-  on
-};
 ControllerState fsmState = on; //Store the number of key presses.
 
 //Display
 uint8_t DisBuff[4 + 25 * 3]; //Used to store RBG color values
 
 //Declaration
-String processor(const String &var);
+String webServerProcessor(const String &var);
 void setBuff(uint8_t Rdata, uint8_t Gdata, uint8_t Bdata); //Set the colors of LED, and save the relevant data to DisBuff[].
 String stateToString(ControllerState state);               //Convert the state to an string to display o
 
@@ -80,7 +77,12 @@ void setup()
     return;
   }
 
-  light1 = LightImpl();
+  // create the lights
+  light1 = LightImpl(0);
+  light2 = LightImpl(1);
+  lightMl = LightImpl(2);
+  lightConverter = LighttoFastLEDConverter(FastLED, light1, light2, lightMl);
+
   light1.mOnTime = "11:30";
   light1.mOffTime = "22:45";
 
@@ -92,8 +94,7 @@ void setup()
   M5.dis.displaybuff(DisBuff);
 
   // Init LED outputs
-  FastLED.addLeds<P9813, P9813_D_PIN, P9813_C_PIN, RGB>(leds, P9813_NUM_LEDS); // BGR ordering is typical
-
+  FastLED.addLeds<P9813, P9813_D_PIN, P9813_C_PIN, RGB>(fastLedDummyLed, P9813_NUM_LEDS); // BGR ordering is typical
   // Connect to Wi-Fi
   WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED)
@@ -109,7 +110,7 @@ void setup()
 
   // Route for root / web page
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
-            { request->send(SPIFFS, "/index.html", String(), false, processor); });
+            { request->send(SPIFFS, "/index.html", String(), false, webServerProcessor); });
 
   // Route to load style.css file
   server.on("/style.css", HTTP_GET, [](AsyncWebServerRequest *request)
@@ -144,58 +145,47 @@ void setup()
             });
   // Start server
   server.begin();
+
+  FastLED.showColor(CRGB::White, 255);
 }
 uint8_t bright = 00;
 
 void loop()
 {
   delay(10);
+
   // get ntp time
   timeClient.setTimeOffset(3600);
   timeClient.update();
   acutalTime = timeClient.getFormattedTime();
 
-  leds[0] = bright++;
-
-  FastLED.setBrightness(255);
-  // FastLED.show();
-  // M5.Btn.read();
+  M5.update(); //Read the press state of the key.
   if (M5.Btn.wasPressed())
   {
     //handle state change
     uint8_t state = static_cast<uint8_t>(fsmState);
     ++state > 2 ? state = 0 : state;
     fsmState = static_cast<ControllerState>(state);
+    fastLedDummyLed[0] = CRGB::White;
     switch (fsmState)
     {
     case ControllerState::off:
       M5.dis.clear();
-      leds[0] = 0xFFFFFF;
-
       setBuff(0x00, 0x00, 0x00);
       break;
     case ControllerState::on:
-      leds[0] = CRGB::Blue;
-
       setBuff(0x00, 0x40, 0x00);
       break;
     case ControllerState::automatic:
-      leds[0] = CRGB::Red;
-
       setBuff(0x00, 0x00, 0x40);
       break;
     default:
       break;
     }
-    // FastLED.setBrightness(bright += 20);
+    lightConverter.controlLights(fsmState);
     Serial.printf("state %i", static_cast<uint8_t>(fsmState));
-    FastLED.setBrightness(255);
-    FastLED.setDither(DISABLE_DITHER);
-
-    FastLED.show();
-    M5.dis.displaybuff(DisBuff);
+    // M5.dis.displaybuff(DisBuff);
   }
-  M5.update(); //Read the press state of the key.
 }
 /**
  * @brief Process input messages values for display
@@ -203,7 +193,7 @@ void loop()
  * @param var Message
  * @return String preceed value for message
  */
-String processor(const String &var)
+String webServerProcessor(const String &var)
 {
   Serial.println(var);
   if (var == "L1ON")
@@ -242,6 +232,12 @@ void setBuff(uint8_t Rdata, uint8_t Gdata, uint8_t Bdata)
   }
 }
 
+/**
+ * @brief compute the state of the controller to correct string for the webserver
+ * 
+ * @param state state to get the string from
+ * @return String 
+ */
 String stateToString(ControllerState state)
 {
   switch (state)
