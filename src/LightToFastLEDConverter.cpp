@@ -1,6 +1,6 @@
 #include "LightToFastLEDConverter.hpp"
 
-LighttoFastLEDConverter::LighttoFastLEDConverter(CFastLED &fastLed, LightImpl &light1, LightImpl &light2, LightImpl &light3)
+LighttoFastLEDConverter::LighttoFastLEDConverter(CLEDController &fastLed, LightImpl &light1, LightImpl &light2, LightImpl &light3)
 
 {
     fastLedInstance = &fastLed;

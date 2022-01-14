@@ -11,11 +11,11 @@
 class LighttoFastLEDConverter
 {
 private:
-	CFastLED *fastLedInstance;
+	CLEDController *fastLedInstance;
 	LightImpl *_lights[NUM_LIGHTS];
 
 public:
-	LighttoFastLEDConverter(CFastLED &fastLed, LightImpl &light1, LightImpl &light2, LightImpl &light3);
+	LighttoFastLEDConverter(CLEDController &fastLed, LightImpl &light1, LightImpl &light2, LightImpl &light3);
 	~LighttoFastLEDConverter();
 	void controlLights(ControllerState actualstate);
 };

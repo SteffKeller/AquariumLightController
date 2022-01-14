@@ -21,6 +21,17 @@
 #include <time.h>
 #include <arduino-timer.h>
 
+// Set LED GPIO
+#define P9813_C_PIN 21
+#define P9813_D_PIN 25
+#define P9813_NUM_LEDS 1
+
+// FastLEd on M5 stack
+#define M5_LED_PIN 15
+#define NUM_M5_LEDS 25
+#define M5_LED_BRIGHTNESS 100
+CRGB m5LedPixelBuffer[NUM_M5_LEDS];
+
 //NTP
 #include <NTPClient.h>
 #include <WiFiUdp.h>
@@ -37,13 +48,11 @@ auto timerDisplayTimeout = timer_create_default(); // create a timer with defaul
 const char *ssid = "diveintothenet";
 const char *password = "dtn24steffshome67L";
 
-// Set LED GPIO
-#define P9813_C_PIN 21
-#define P9813_D_PIN 25
-#define P9813_NUM_LEDS 1
 // This is an array of leds.  One item for each led in your strip.
 CRGB fastLedDummyLed[P9813_NUM_LEDS];
 LighttoFastLEDConverter *lightConverter;
+CLEDController *aqLights;
+CLEDController *m5Pixels;
 
 const int ledPin = 2;
 // Stores LED state
@@ -66,15 +75,13 @@ const char *PARAM_MLOFF = "mloff";
 
 ControllerState fsmState = on; //Store the number of key presses.
 
-//Display
-uint8_t DisBuff[4 + 25 * 3]; //Used to store RBG color values
-
 //Declaration
 String webServerProcessor(const String &var);
 void setBuff(uint8_t Rdata, uint8_t Gdata, uint8_t Bdata); //Set the colors of LED, and save the relevant data to DisBuff[].
 String stateToString(ControllerState state);               //Convert the state to an string to display
 bool timeUpdate(void *);
 bool displayTimeoutCallback(void *);
+void setM5Leds(char DisChar, CRGB color);
 
 void setup()
 {
@@ -85,24 +92,23 @@ void setup()
     Serial.println("An Error has occurred while mounting SPIFFS");
     return;
   }
+  // Init LED outputs
+  aqLights = &FastLED.addLeds<P9813, P9813_D_PIN, P9813_C_PIN, RGB>(fastLedDummyLed, P9813_NUM_LEDS); // BGR ordering is typical
+  m5Pixels = &FastLED.addLeds<WS2812, DATA_PIN, GRB>(m5LedPixelBuffer, NUM_M5_LEDS);
+
   // create the lights
   light1 = LightImpl(0);
   light2 = LightImpl(1);
   lightMl = LightImpl(2);
-  lightConverter = new LighttoFastLEDConverter{FastLED, light1, light2, lightMl};
+  lightConverter = new LighttoFastLEDConverter{*aqLights, light1, light2, lightMl};
 
   light1.mOnTime = "11:30";
   light1.mOffTime = "22:45";
+  light1.state = ControllerState::on;
+
 
   //Init Atom-Matrix(Initialize serial port, LED).
-  M5.begin(true, false, true);
-  M5.dis.begin(25);
-  delay(10);
-  setBuff(0xff, 0x00, 0x00);
-  M5.dis.displaybuff(DisBuff);
-
-  // Init LED outputs
-  FastLED.addLeds<P9813, P9813_D_PIN, P9813_C_PIN, RGB>(fastLedDummyLed, P9813_NUM_LEDS); // BGR ordering is typical
+  M5.begin(true, false, false);
 
   // Connect to Wi-Fi
   WiFi.begin(ssid, password);
@@ -116,7 +122,7 @@ void setup()
   Serial.println(WiFi.localIP());
 
   // call the toggle_led function every 1000 millis (1 second)
-  timer10s.every(1000, timeUpdate);
+  timer10s.every(10000, timeUpdate);
   timerDisplayTimeout.in(10000, displayTimeoutCallback);
 
   // Route for root / web page
@@ -170,26 +176,35 @@ void loop()
 
   if (M5.Btn.wasPressed())
   {
-    //handle state change
-    uint8_t state = static_cast<uint8_t>(fsmState);
-    ++state > 2 ? state = 0 : state;
-    fsmState = static_cast<ControllerState>(state);
+    // if display is dark light it up with the fist button press
+    if (!timerDisplayTimeout.empty())
+    {
+      //handle state change
+      uint8_t state = static_cast<uint8_t>(fsmState);
+      ++state > 2 ? state = 0 : state;
+      fsmState = static_cast<ControllerState>(state);
+    }
 
     switch (fsmState)
     {
     case ControllerState::off:
-      setBuff(0xAA, 0x00, 0x00);
+      m5Pixels->clearLedData();
+      setM5Leds('0', CRGB::Red);
+      m5Pixels->show(m5LedPixelBuffer, NUM_M5_LEDS, M5_LED_BRIGHTNESS);
       break;
     case ControllerState::on:
-      setBuff(0x00, 0x40, 0x00);
+      m5Pixels->clearLedData();
+      setM5Leds('1', CRGB::Green);
+      m5Pixels->show(m5LedPixelBuffer, NUM_M5_LEDS, M5_LED_BRIGHTNESS);
       break;
     case ControllerState::automatic:
-      setBuff(0x00, 0x00, 0x40);
+      m5Pixels->clearLedData();
+      setM5Leds('A', CRGB::Blue);
+      m5Pixels->show(m5LedPixelBuffer, NUM_M5_LEDS, M5_LED_BRIGHTNESS);
       break;
     default:
       break;
     }
-    M5.dis.displaybuff(DisBuff);
     Serial.printf("state %i", static_cast<uint8_t>(fsmState));
 
     // reset display timeout and set it new
@@ -199,6 +214,27 @@ void loop()
   M5.update(); //Read the press state of the key.
 }
 
+void setM5Leds(char DisChar, CRGB color)
+{
+  if (DisChar == '0')
+  {
+    int leds[]{5, 6, 7, 8, 9, 14, 15, 19, 18, 17, 16, 15, 10};
+    for (int ledElem : leds)
+      m5LedPixelBuffer[ledElem] = color;
+  }
+  else if (DisChar == 'A')
+  {
+    int leds[]{5, 6, 7, 8, 8, 14, 18, 17, 16, 15, 12};
+    for (int ledElem : leds)
+      m5LedPixelBuffer[ledElem] = color;
+  }
+  else if (DisChar == '1')
+  {
+    int leds[]{10, 11, 12, 13, 14, 8};
+    for (int ledElem : leds)
+      m5LedPixelBuffer[ledElem] = color;
+  }
+}
 /**
  * @brief Process input messages values for display
  * 
@@ -232,18 +268,6 @@ String webServerProcessor(const String &var)
   return String();
 }
 
-void setBuff(uint8_t Rdata, uint8_t Gdata, uint8_t Bdata)
-{ //Set the colors of LED, and save the relevant data to DisBuff[].
-  // DisBuff[0] = 0x00;
-  // DisBuff[1] = 0x00;
-  for (int i = 0; i < 25; i++)
-  {
-    DisBuff[i * 3 + 0] = Rdata;
-    DisBuff[i * 3 + 1] = Gdata;
-    DisBuff[i * 3 + 2] = Bdata;
-  }
-}
-
 /**
  * @brief compute the state of the controller to correct string for the webserver
  * 
@@ -269,6 +293,10 @@ String stateToString(ControllerState state)
   }
 }
 
+/**
+ * @brief update NTP time
+ * @return true repeat timer
+ */
 bool timeUpdate(void *)
 {
   timeClient.setTimeOffset(3600);
@@ -278,12 +306,13 @@ bool timeUpdate(void *)
   return true;
 }
 
+/**
+ * @brief turn the M5 display off
+ * @return false not repeat timer
+ */
 bool displayTimeoutCallback(void *)
 {
   Serial.println("off dis");
-  setBuff(0x00, 0x00, 0x00);
-  M5.dis.displaybuff(DisBuff);
-  M5.dis.clear();
-  M5.dis.setBrightness(0);
+  m5Pixels->clearLeds(NUM_M5_LEDS);
   return false;
 }
