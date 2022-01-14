@@ -77,6 +77,7 @@ const char *PARAM_MLON = "mlon";
 const char *PARAM_MLOFF = "mloff";
 
 ControllerState fsmState = automatic; //fsm state @ startup is automatic
+
 //Declaration
 String webServerProcessor(const String &var);
 void setBuff(uint8_t Rdata, uint8_t Gdata, uint8_t Bdata); //Set the colors of LED, and save the relevant data to DisBuff[].
@@ -123,6 +124,7 @@ void setup()
   // Print ESP32 Local IP Address
   Serial.println(WiFi.localIP());
 
+  timeUpdate(nullptr);
   // call the toggle_led function every 1000 millis (1 second)
   timer10s.every(10000, timeUpdate);
   timerButtonProseed.every(100, buttonProceedCallback);
