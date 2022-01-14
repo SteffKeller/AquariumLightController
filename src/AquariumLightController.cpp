@@ -20,6 +20,7 @@
 #include "LightToFastLEDConverter.hpp"
 #include <time.h>
 #include <arduino-timer.h>
+#include <Adafruit_SleepyDog.h>
 
 // Set LED GPIO
 #define P9813_C_PIN 21
@@ -32,6 +33,7 @@
 #define M5_LED_BRIGHTNESS 100
 CRGB m5LedPixelBuffer[NUM_M5_LEDS];
 
+#define WATCHDOG_TIMEOUT_MS 2000
 //NTP
 #include <NTPClient.h>
 #include <WiFiUdp.h>
@@ -43,6 +45,7 @@ String l1onTime, l1offTime, l2onTime, l2offTime, actualTime;
 auto timer10s = timer_create_default();            // create a timer with default settings
 auto timer1s = timer_create_default();             // create a timer with default settings
 auto timerDisplayTimeout = timer_create_default(); // create a timer with default settings
+auto timerButtonProseed = timer_create_default();  // create a timer with default settings
 
 // network credentials
 const char *ssid = "diveintothenet";
@@ -73,13 +76,13 @@ const char *PARAM_L2OFF = "l2off";
 const char *PARAM_MLON = "mlon";
 const char *PARAM_MLOFF = "mloff";
 
-ControllerState fsmState = on; //Store the number of key presses.
-
+ControllerState fsmState = automatic; //fsm state @ startup is automatic
 //Declaration
 String webServerProcessor(const String &var);
 void setBuff(uint8_t Rdata, uint8_t Gdata, uint8_t Bdata); //Set the colors of LED, and save the relevant data to DisBuff[].
 String stateToString(ControllerState state);               //Convert the state to an string to display
 bool timeUpdate(void *);
+bool buttonProceedCallback(void *);
 bool displayTimeoutCallback(void *);
 void setM5Leds(char DisChar, CRGB color);
 
@@ -104,8 +107,7 @@ void setup()
 
   light1.mOnTime = "11:30";
   light1.mOffTime = "22:45";
-  light1.state = ControllerState::on;
-
+  light1.mDimmValueOn = 192;
 
   //Init Atom-Matrix(Initialize serial port, LED).
   M5.begin(true, false, false);
@@ -123,6 +125,7 @@ void setup()
 
   // call the toggle_led function every 1000 millis (1 second)
   timer10s.every(10000, timeUpdate);
+  timerButtonProseed.every(100, buttonProceedCallback);
   timerDisplayTimeout.in(10000, displayTimeoutCallback);
 
   // Route for root / web page
@@ -163,6 +166,7 @@ void setup()
             });
   // Start server
   server.begin();
+  Watchdog.enable(WATCHDOG_TIMEOUT_MS);
 }
 uint8_t bright = 00;
 
@@ -171,47 +175,7 @@ void loop()
   // tick the timers
   timer10s.tick();
   timerDisplayTimeout.tick();
-
-  lightConverter->controlLights(fsmState);
-
-  if (M5.Btn.wasPressed())
-  {
-    // if display is dark light it up with the fist button press
-    if (!timerDisplayTimeout.empty())
-    {
-      //handle state change
-      uint8_t state = static_cast<uint8_t>(fsmState);
-      ++state > 2 ? state = 0 : state;
-      fsmState = static_cast<ControllerState>(state);
-    }
-
-    switch (fsmState)
-    {
-    case ControllerState::off:
-      m5Pixels->clearLedData();
-      setM5Leds('0', CRGB::Red);
-      m5Pixels->show(m5LedPixelBuffer, NUM_M5_LEDS, M5_LED_BRIGHTNESS);
-      break;
-    case ControllerState::on:
-      m5Pixels->clearLedData();
-      setM5Leds('1', CRGB::Green);
-      m5Pixels->show(m5LedPixelBuffer, NUM_M5_LEDS, M5_LED_BRIGHTNESS);
-      break;
-    case ControllerState::automatic:
-      m5Pixels->clearLedData();
-      setM5Leds('A', CRGB::Blue);
-      m5Pixels->show(m5LedPixelBuffer, NUM_M5_LEDS, M5_LED_BRIGHTNESS);
-      break;
-    default:
-      break;
-    }
-    Serial.printf("state %i", static_cast<uint8_t>(fsmState));
-
-    // reset display timeout and set it new
-    timerDisplayTimeout.cancel();
-    timerDisplayTimeout.in(10000, displayTimeoutCallback);
-  }
-  M5.update(); //Read the press state of the key.
+  timerButtonProseed.tick();
 }
 
 void setM5Leds(char DisChar, CRGB color)
@@ -303,6 +267,56 @@ bool timeUpdate(void *)
   timeClient.update();
   actualTime = timeClient.getFormattedTime();
   Serial.println(actualTime);
+  return true;
+}
+
+/**
+ * @brief update NTP time
+ * @return true repeat timer
+ */
+bool buttonProceedCallback(void *)
+{
+  lightConverter->controlLights(fsmState);
+
+  if (M5.Btn.wasPressed())
+  {
+    // if display is dark light it up with the fist button press
+    if (!timerDisplayTimeout.empty())
+    {
+      //handle state change
+      uint8_t state = static_cast<uint8_t>(fsmState);
+      ++state > 2 ? state = 0 : state;
+      fsmState = static_cast<ControllerState>(state);
+    }
+
+    switch (fsmState)
+    {
+    case ControllerState::off:
+      m5Pixels->clearLedData();
+      setM5Leds('0', CRGB::Red);
+      m5Pixels->show(m5LedPixelBuffer, NUM_M5_LEDS, M5_LED_BRIGHTNESS);
+      break;
+    case ControllerState::on:
+      m5Pixels->clearLedData();
+      setM5Leds('1', CRGB::Green);
+      m5Pixels->show(m5LedPixelBuffer, NUM_M5_LEDS, M5_LED_BRIGHTNESS);
+      break;
+    case ControllerState::automatic:
+      m5Pixels->clearLedData();
+      setM5Leds('A', CRGB::Blue);
+      m5Pixels->show(m5LedPixelBuffer, NUM_M5_LEDS, M5_LED_BRIGHTNESS);
+      break;
+    default:
+      break;
+    }
+    Serial.printf("state %i", static_cast<uint8_t>(fsmState));
+
+    // reset display timeout and set it new
+    timerDisplayTimeout.cancel();
+    timerDisplayTimeout.in(10000, displayTimeoutCallback);
+  }
+  M5.update();      //Read the press state of the key.
+  Watchdog.reset(); // feed the dog
   return true;
 }
 
