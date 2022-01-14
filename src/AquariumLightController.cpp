@@ -12,7 +12,8 @@
 #include "WiFi.h"
 #include "ESPAsyncWebServer.h"
 #include "SPIFFS.h"
-#include "M5Atom.h"
+// #include "M5Atom.h"
+#include "M5Stack.h"
 #include "LightImpl.hpp"
 #include "time.h"
 #include "FastLED.h"
@@ -42,6 +43,7 @@ const char *password = "dtn24steffshome67L";
 #define P9813_D_PIN 25
 #define P9813_NUM_LEDS 1
 // This is an array of leds.  One item for each led in your strip.
+CFastLED aqLights;
 CRGB fastLedDummyLed[P9813_NUM_LEDS];
 LighttoFastLEDConverter *lightConverter;
 
@@ -64,12 +66,12 @@ const char *PARAM_L2OFF = "l2off";
 const char *PARAM_MLON = "mlon";
 const char *PARAM_MLOFF = "mloff";
 
-ControllerState fsmState = on; //Store the number of key presses.
+ControllerState fsmState = ControllerState::automatic; //Init state is allways automatic
 
 //Display
 uint8_t DisBuff[4 + 25 * 3]; //Used to store RBG color values
 
-//Declaration
+//Declarations
 String webServerProcessor(const String &var);
 void setBuff(uint8_t Rdata, uint8_t Gdata, uint8_t Bdata); //Set the colors of LED, and save the relevant data to DisBuff[].
 String stateToString(ControllerState state);               //Convert the state to an string to display
@@ -86,23 +88,32 @@ void setup()
     return;
   }
   // create the lights
+  aqLights = CFastLED();
   light1 = LightImpl(0);
   light2 = LightImpl(1);
   lightMl = LightImpl(2);
-  lightConverter = new LighttoFastLEDConverter{FastLED, light1, light2, lightMl};
+  lightConverter = new LighttoFastLEDConverter{aqLights, light1, light2, lightMl};
 
   light1.mOnTime = "11:30";
   light1.mOffTime = "22:45";
 
   //Init Atom-Matrix(Initialize serial port, LED).
-  M5.begin(true, false, true);
-  M5.dis.begin(25);
+  M5.begin(); //Init M5Core.  初始化 M5Core
+  M5.Power.begin();
+  // M5.begin(true, false, true);
+  // M5.Ldc.begin(25);
   delay(10);
-  setBuff(0xff, 0x00, 0x00);
-  M5.dis.displaybuff(DisBuff);
+  setBuff(0xff, 0xAA, 0x55);
+  M5.Lcd.init();
+  M5.Lcd.fillScreen(WHITE); // Set the screen background.  设置屏幕底色为白色
+  delay(500);               //Delay 500ms.  延迟500ms
+  M5.Lcd.fillScreen(RED);
+  delay(500);
+  M5.Lcd.fillScreen(GREEN);
+  // M5.Ldc.displaybuff(DisBuff);
 
   // Init LED outputs
-  FastLED.addLeds<P9813, P9813_D_PIN, P9813_C_PIN, RGB>(fastLedDummyLed, P9813_NUM_LEDS); // BGR ordering is typical
+  aqLights.addLeds<P9813, P9813_D_PIN, P9813_C_PIN, RGB>(fastLedDummyLed, P9813_NUM_LEDS); // BGR ordering is typical
 
   // Connect to Wi-Fi
   WiFi.begin(ssid, password);
@@ -166,30 +177,40 @@ void loop()
   timer10s.tick();
   timerDisplayTimeout.tick();
 
-  lightConverter->controlLights(fsmState);
+  //lightConverter->controlLights(fsmState);
 
-  if (M5.Btn.wasPressed())
+  if (M5.BtnA.wasPressed())
   {
-    //handle state change
-    uint8_t state = static_cast<uint8_t>(fsmState);
-    ++state > 2 ? state = 0 : state;
-    fsmState = static_cast<ControllerState>(state);
+    if (!timerDisplayTimeout.empty())
+    {
+      //handle state change
+      uint8_t state = static_cast<uint8_t>(fsmState);
+      ++state > 2 ? state = 0 : state;
+      fsmState = static_cast<ControllerState>(state);
+    }
 
     switch (fsmState)
     {
     case ControllerState::off:
-      setBuff(0xAA, 0x00, 0x00);
+      // setBuff(0xAA, 0x00, 0x00);
+      M5.Lcd.fillScreen(CRGB::Red);
+
       break;
     case ControllerState::on:
-      setBuff(0x00, 0x40, 0x00);
+      M5.Lcd.fillScreen(CRGB::Blue);
+
+      // setBuff(0x00, 0x40, 0x00);
       break;
     case ControllerState::automatic:
-      setBuff(0x00, 0x00, 0x40);
+      // setBuff(0x00, 0x00, 0x40);
+      M5.Lcd.fillScreen(CRGB::Green);
+
       break;
     default:
       break;
     }
-    M5.dis.displaybuff(DisBuff);
+    // M5.Ldc.displaybuff(DisBuff);
+    // M5.Lcd.fillScreen(CRGB::Blue);
     Serial.printf("state %i", static_cast<uint8_t>(fsmState));
 
     // reset display timeout and set it new
@@ -282,8 +303,8 @@ bool displayTimeoutCallback(void *)
 {
   Serial.println("off dis");
   setBuff(0x00, 0x00, 0x00);
-  M5.dis.displaybuff(DisBuff);
-  M5.dis.clear();
-  M5.dis.setBrightness(0);
+  // M5.Ldc.displaybuff(DisBuff);
+  // M5.Ldc.clear();
+  // M5.Ldc.setBrightness(0);
   return false;
 }
