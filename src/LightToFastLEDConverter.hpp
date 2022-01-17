@@ -15,7 +15,7 @@ private:
 	LightImpl *_lights[NUM_LIGHTS];
 
 public:
-	LighttoFastLEDConverter(CLEDController &fastLed, LightImpl &light1, LightImpl &light2, LightImpl &light3);
+	LighttoFastLEDConverter(CLEDController &fastLed, LightImpl (&lightsImpl)[NUM_LIGHTS]);
 	~LighttoFastLEDConverter();
 	void controlLights(ControllerState actualstate);
 };

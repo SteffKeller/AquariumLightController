@@ -1,12 +1,14 @@
 #include "LightToFastLEDConverter.hpp"
 
-LighttoFastLEDConverter::LighttoFastLEDConverter(CLEDController &fastLed, LightImpl &light1, LightImpl &light2, LightImpl &light3)
+LighttoFastLEDConverter::LighttoFastLEDConverter(CLEDController &fastLed, LightImpl (&lightsImpl)[NUM_LIGHTS])
 
 {
     fastLedInstance = &fastLed;
-    _lights[0] = &light1;
-    _lights[1] = &light2;
-    _lights[2] = &light3;
+
+    for (size_t i = 0; i < NUM_LIGHTS; i++)
+    {
+        _lights[i] = &lightsImpl[i];
+    }
 }
 
 LighttoFastLEDConverter::~LighttoFastLEDConverter()
@@ -20,9 +22,17 @@ void LighttoFastLEDConverter::controlLights(ControllerState actualstate)
     switch (actualstate)
     {
     case ControllerState::off:
+        for (int i = 0; i < NUM_LIGHTS; i++)
+        {
+            _lights[i]->overrideState(true, false);
+        }
         fastLedInstance->showColor(0x00, 0); /// all lights off
         break;
     case ControllerState::on:
+        for (int i = 0; i < NUM_LIGHTS; i++)
+        {
+            _lights[i]->overrideState(true, true);
+        }
         fastLedInstance->showColor(0xFFFFFF, MAX_BRIGHTNESS); /// all lights on
         break;
     case ControllerState::automatic:

@@ -21,7 +21,10 @@
 #include <time.h>
 #include <arduino-timer.h>
 #include <Adafruit_SleepyDog.h>
+#include <ezTime.h>
+#include <TimeHelper.hpp>
 
+using namespace ezt;
 // Set LED GPIO
 #define P9813_C_PIN 21
 #define P9813_D_PIN 25
@@ -33,16 +36,14 @@
 #define M5_LED_BRIGHTNESS 100
 CRGB m5LedPixelBuffer[NUM_M5_LEDS];
 
+#define NUMBER_OF_LIGHTS 3
+
 #define WATCHDOG_TIMEOUT_MS 2000
-//NTP
-#include <NTPClient.h>
-#include <WiFiUdp.h>
-WiFiUDP ntpUDP;
-NTPClient timeClient(ntpUDP);
+
 String l1onTime, l1offTime, l2onTime, l2offTime, actualTime;
 
 // Timer
-auto timer10s = timer_create_default();            // create a timer with default settings
+auto timerTimeUpdate = timer_create_default();     // create a timer with default settings
 auto timer1s = timer_create_default();             // create a timer with default settings
 auto timerDisplayTimeout = timer_create_default(); // create a timer with default settings
 auto timerButtonProseed = timer_create_default();  // create a timer with default settings
@@ -57,24 +58,32 @@ LighttoFastLEDConverter *lightConverter;
 CLEDController *aqLights;
 CLEDController *m5Pixels;
 
+Timezone timeNow;
+TimeHelper timeHelper;
+
 const int ledPin = 2;
 // Stores LED state
 String ledState;
 
 // light controller instances
-LightImpl light1, light2, lightMl;
+// LightImpl light1, light2, lightMl;
+LightImpl lights[NUMBER_OF_LIGHTS];
 
 // Create AsyncWebServer object on port 80
 AsyncWebServer server(80);
 
 //Form Inputs
 const char *PARAM_INPUT_3 = "input3";
-const char *PARAM_L1ON = "l1on";
+// const char *PARAM_L1ON = "l1on";
+const String PARAM_L1ON = "l1on";
+
 const char *PARAM_L1OFF = "l1off";
 const char *PARAM_L2ON = "l2on";
 const char *PARAM_L2OFF = "l2off";
 const char *PARAM_MLON = "mlon";
 const char *PARAM_MLOFF = "mloff";
+
+String lightNames[] = {"light1", "light2", "lightMl"};
 
 ControllerState fsmState = automatic; //fsm state @ startup is automatic
 
@@ -96,22 +105,17 @@ void setup()
     Serial.println("An Error has occurred while mounting SPIFFS");
     return;
   }
+
+  //Init Atom-Matrix(Initialize serial port, LED).
+  M5.begin(true, false, false);
   // Init LED outputs
   aqLights = &FastLED.addLeds<P9813, P9813_D_PIN, P9813_C_PIN, RGB>(fastLedDummyLed, P9813_NUM_LEDS); // BGR ordering is typical
   m5Pixels = &FastLED.addLeds<WS2812, DATA_PIN, GRB>(m5LedPixelBuffer, NUM_M5_LEDS);
 
   // create the lights
-  light1 = LightImpl(0);
-  light2 = LightImpl(1);
-  lightMl = LightImpl(2);
-  lightConverter = new LighttoFastLEDConverter{*aqLights, light1, light2, lightMl};
-
-  light1.mOnTime = "11:30";
-  light1.mOffTime = "22:45";
-  light1.mDimmValueOn = 192;
-
-  //Init Atom-Matrix(Initialize serial port, LED).
-  M5.begin(true, false, false);
+  lights[0] = LightImpl(lightNames[0], 0, timeNow);
+  lights[1] = LightImpl(lightNames[1], 1, timeNow);
+  lights[2] = LightImpl(lightNames[2], 2, timeNow);
 
   // Connect to Wi-Fi
   WiFi.begin(ssid, password);
@@ -121,14 +125,35 @@ void setup()
     Serial.println("Connecting to WiFi..");
   }
 
+  lights[0].mOnTime[0] = timeHelper.makeTmElement("12:34");
+  lights[0].mOffTime[0] = timeHelper.makeTmElement("22:30");
+
+  lightConverter = new LighttoFastLEDConverter{*aqLights, lights};
+
   // Print ESP32 Local IP Address
   Serial.println(WiFi.localIP());
 
-  timeUpdate(nullptr);
+  // wait for NTP sync
+  waitForSync();
+  // setDebug(EZTIME_MAX_DEBUGLEVEL_INFO);
+
+  // Or country codes for countries that do not span multiple timezones
+  timeNow.setLocation(F("ch"));
+  Serial.println(dateTime(timeNow.tzTime(), "H:i"));
+
+  if (timeNow.setLocation())
+  {
+    Serial.println(timeNow.dateTime());
+  }
+  else
+  {
+    Serial.println(errorString());
+  }
+
   // call the toggle_led function every 1000 millis (1 second)
-  timer10s.every(10000, timeUpdate);
   timerButtonProseed.every(100, buttonProceedCallback);
   timerDisplayTimeout.in(10000, displayTimeoutCallback);
+  timerTimeUpdate.every(60000, timeUpdate);
 
   // Route for root / web page
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
@@ -150,12 +175,13 @@ void setup()
               }
               if (request->hasParam(PARAM_L1ON))
               {
-                light1.mOnTime = request->getParam(PARAM_L1ON)->value();
+                lights[0].mOnTime[0] = timeHelper.makeTmElement(request->getParam(PARAM_L1ON)->value());
+                Serial.println("regquest");
+                Serial.println(timeHelper.makeTimeString(lights[0].mOnTime[0]));
               }
               if (request->hasParam(PARAM_L1OFF))
               {
-                light1.mOffTime = request->getParam(PARAM_L1OFF)->value();
-                inputParam = PARAM_L1OFF;
+                lights[0].mOffTime[0] = timeHelper.makeTmElement(request->getParam(PARAM_L1OFF)->value());
               }
               else
               {
@@ -175,9 +201,14 @@ uint8_t bright = 00;
 void loop()
 {
   // tick the timers
-  timer10s.tick();
+  timerTimeUpdate.tick();
   timerDisplayTimeout.tick();
   timerButtonProseed.tick();
+  for (size_t i = 0; i < NUMBER_OF_LIGHTS; i++)
+  {
+    lights[i].process();
+  }
+  lightConverter->controlLights(fsmState);
 }
 
 void setM5Leds(char DisChar, CRGB color)
@@ -212,11 +243,11 @@ String webServerProcessor(const String &var)
   Serial.println(var);
   if (var == "L1ON")
   {
-    return light1.mOnTime;
+    return timeHelper.makeTimeString(lights[0].mOnTime[0]);
   }
   if (var == "L1OFF")
   {
-    return light1.mOffTime;
+    return timeHelper.makeTimeString(lights[0].mOffTime[0]);
   }
   if (var == "ACTUALTIME")
   {
@@ -224,7 +255,7 @@ String webServerProcessor(const String &var)
   }
   if (var == "LIGHT1STATE")
   {
-    return stateToString(static_cast<ControllerState>(light1.getState()));
+    return stateToString(static_cast<ControllerState>(lights[0].getState()));
   }
   if (var == "CONTROLLERSTATE")
   {
@@ -265,10 +296,9 @@ String stateToString(ControllerState state)
  */
 bool timeUpdate(void *)
 {
-  timeClient.setTimeOffset(3600);
-  timeClient.update();
-  actualTime = timeClient.getFormattedTime();
-  Serial.println(actualTime);
+  Serial.println("time update");
+  updateNTP();
+  Serial.println(dateTime(timeNow.tzTime(), "H:i"));
   return true;
 }
 
@@ -278,7 +308,6 @@ bool timeUpdate(void *)
  */
 bool buttonProceedCallback(void *)
 {
-  lightConverter->controlLights(fsmState);
 
   if (M5.Btn.wasPressed())
   {

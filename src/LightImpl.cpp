@@ -8,9 +8,11 @@ LightImpl::LightImpl()
     _state = 1;
 }
 
-LightImpl::LightImpl(uint8_t fastLEDPos)
+LightImpl::LightImpl(String lightName, uint8_t fastLEDPos, Timezone &actualTime)
 {
     _fastLEDPos = fastLEDPos;
+    _actualTime = &actualTime;
+    _lightName = lightName;
 }
 
 LightImpl::~LightImpl()
@@ -31,13 +33,26 @@ void LightImpl::overrideState(bool overrideOn, bool overrideState)
     }
 }
 
-void LightImpl::processTime(String actualTime)
+void LightImpl::process()
 {
-    // erase(actualTime, ':');
-    // int acutalTimeInt = std::stoi(actualTime);
+    TimeHelper calculator;
+    tmElements_t actTime;
+
+    if (!_overrideOn)
+    {
+
+        breakTime(_actualTime->tzTime(), actTime);
+        _state = calculator.calcTimeBetween(&mOnTime[0], &mOffTime[0], &actTime);
+        //_state |= calculator.calcTimeBetween(&mOnTime[1], &mOffTime[1], &actTime);
+    }
 }
 
 uint8_t LightImpl::getFastLedPos()
 {
     return _fastLEDPos;
+}
+
+String LightImpl::getLightName()
+{
+    return _lightName;
 }
