@@ -5,8 +5,8 @@
 enum ControllerState
 {
 	off = 0,
-	automatic,
-	on
+	on,
+	automatic
 };
 
 #endif

@@ -41,7 +41,7 @@ CRGB m5LedPixelBuffer[NUM_M5_LEDS];
 #define WATCHDOG_TIMEOUT_MS 2000
 
 String l1onTime, l1offTime, l2onTime, l2offTime, actualTime;
-
+bool firstStartUp = true;
 // Timer
 auto timerTimeUpdate = timer_create_default();     // create a timer with default settings
 auto timer1s = timer_create_default();             // create a timer with default settings
@@ -75,11 +75,11 @@ AsyncWebServer server(80);
 //Form Inputs
 const char *PARAM_INPUT_3 = "input3";
 // const char *PARAM_L1ON = "l1on";
-const String PARAM_L1ON = "l1on";
+const String PARAM_L1ON = "l1ontime1";
 
-const char *PARAM_L1OFF = "l1off";
-const char *PARAM_L2ON = "l2on";
-const char *PARAM_L2OFF = "l2off";
+const char *PARAM_L1OFF = "l1offtime1";
+const char *PARAM_L2ON = "l1ontime2";
+const char *PARAM_L2OFF = "l1offtime1";
 const char *PARAM_MLON = "mlon";
 const char *PARAM_MLOFF = "mloff";
 
@@ -95,6 +95,13 @@ bool timeUpdate(void *);
 bool buttonProceedCallback(void *);
 bool displayTimeoutCallback(void *);
 void setM5Leds(char DisChar, CRGB color);
+
+typedef struct
+{
+  String command;       /* How often to call the task */
+  String (*proc)(void); /* pointer to function returning void */
+
+} webserverPostStruct;
 
 void setup()
 {
@@ -129,6 +136,9 @@ void setup()
   lights[0].mOffTime[0] = timeHelper.makeTmElement("22:30");
 
   lightConverter = new LighttoFastLEDConverter{*aqLights, lights};
+
+  // webserverPostStruct webserverPosts[2] =
+  //     {{"L1ONTIME1", timeHelper.makeTimeString(lights[0].mOnTime[0])}};
 
   // Print ESP32 Local IP Address
   Serial.println(WiFi.localIP());
@@ -196,7 +206,6 @@ void setup()
   server.begin();
   Watchdog.enable(WATCHDOG_TIMEOUT_MS);
 }
-uint8_t bright = 00;
 
 void loop()
 {
@@ -241,17 +250,17 @@ void setM5Leds(char DisChar, CRGB color)
 String webServerProcessor(const String &var)
 {
   Serial.println(var);
-  if (var == "L1ON")
+  if (var == "L1ONTIME1")
   {
     return timeHelper.makeTimeString(lights[0].mOnTime[0]);
   }
-  if (var == "L1OFF")
+  if (var == "L1OFFTIME1")
   {
     return timeHelper.makeTimeString(lights[0].mOffTime[0]);
   }
   if (var == "ACTUALTIME")
   {
-    return actualTime;
+    return dateTime(timeNow.tzTime(), "H:i");
   }
   if (var == "LIGHT1STATE")
   {
@@ -308,18 +317,23 @@ bool timeUpdate(void *)
  */
 bool buttonProceedCallback(void *)
 {
-
-  if (M5.Btn.wasPressed())
+  if (M5.Btn.wasPressed() || firstStartUp)
   {
-    // if display is dark light it up with the fist button press
-    if (!timerDisplayTimeout.empty())
+    if (!firstStartUp)
     {
-      //handle state change
-      uint8_t state = static_cast<uint8_t>(fsmState);
-      ++state > 2 ? state = 0 : state;
-      fsmState = static_cast<ControllerState>(state);
+      // if display is dark light it up with the fist button press
+      if (!timerDisplayTimeout.empty())
+      {
+        //handle state change
+        uint8_t state = static_cast<uint8_t>(fsmState);
+        ++state > 2 ? state = 0 : state;
+        fsmState = static_cast<ControllerState>(state);
+      }
     }
-
+    else
+    {
+      firstStartUp = false;
+    }
     switch (fsmState)
     {
     case ControllerState::off:

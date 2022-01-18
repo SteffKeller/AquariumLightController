@@ -43,7 +43,7 @@ void LightImpl::process()
 
         breakTime(_actualTime->tzTime(), actTime);
         _state = calculator.calcTimeBetween(&mOnTime[0], &mOffTime[0], &actTime);
-        //_state |= calculator.calcTimeBetween(&mOnTime[1], &mOffTime[1], &actTime);
+        _state |= calculator.calcTimeBetween(&mOnTime[1], &mOffTime[1], &actTime);
     }
 }
 
