@@ -30,5 +30,6 @@ public:
 	tmElements_t mOnTime[2];
 	tmElements_t mOffTime[2];
 	uint8_t mDimmValueOn;
+	uint8_t mDimmTime;
 };
 #endif

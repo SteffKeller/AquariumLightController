@@ -23,9 +23,10 @@
 #include <Adafruit_SleepyDog.h>
 #include <ezTime.h>
 #include <TimeHelper.hpp>
+#include "LightJsonConverter.hpp"
 
 using namespace ezt;
-// Set LED GPIO
+// Set LED GPIO P9813
 #define P9813_C_PIN 21
 #define P9813_D_PIN 25
 #define P9813_NUM_LEDS 1
@@ -40,7 +41,6 @@ CRGB m5LedPixelBuffer[NUM_M5_LEDS];
 
 #define WATCHDOG_TIMEOUT_MS 2000
 
-String l1onTime, l1offTime, l2onTime, l2offTime, actualTime;
 bool firstStartUp = true;
 // Timer
 auto timerTimeUpdate = timer_create_default();     // create a timer with default settings
@@ -137,6 +137,8 @@ void setup()
 
   lightConverter = new LighttoFastLEDConverter{*aqLights, lights};
 
+  LightJsonConverter conv = LightJsonConverter();
+  conv.convertLightToJson(lights[0]);
   // webserverPostStruct webserverPosts[2] =
   //     {{"L1ONTIME1", timeHelper.makeTimeString(lights[0].mOnTime[0])}};
 
