@@ -13,7 +13,10 @@ private:
 public:
 	LightJsonConverter();
 	~LightJsonConverter();
-	void convertLightToJson(LightImpl &light);
+	String convertLightToJson(LightImpl &light);
 	void getLight(LightImpl &light);
+	void storeJsonString(String jsonLight, String filename);
+	// LightJsonConverter loadJson(String filename);
+	String loadJsonString(String filename);
 };
 #endif

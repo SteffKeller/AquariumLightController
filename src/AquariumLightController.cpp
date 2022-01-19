@@ -52,6 +52,8 @@ auto timerButtonProseed = timer_create_default();  // create a timer with defaul
 const char *ssid = "diveintothenet";
 const char *password = "dtn24steffshome67L";
 
+const String light1Filename[] = {"/l1.json", "/l2.json", "/l3.json"};
+
 // This is an array of leds.  One item for each led in your strip.
 CRGB fastLedDummyLed[P9813_NUM_LEDS];
 LighttoFastLEDConverter *lightConverter;
@@ -118,11 +120,21 @@ void setup()
   // Init LED outputs
   aqLights = &FastLED.addLeds<P9813, P9813_D_PIN, P9813_C_PIN, RGB>(fastLedDummyLed, P9813_NUM_LEDS); // BGR ordering is typical
   m5Pixels = &FastLED.addLeds<WS2812, DATA_PIN, GRB>(m5LedPixelBuffer, NUM_M5_LEDS);
+  LightJsonConverter conv = LightJsonConverter();
 
   // create the lights
-  lights[0] = LightImpl(lightNames[0], 0, timeNow);
-  lights[1] = LightImpl(lightNames[1], 1, timeNow);
-  lights[2] = LightImpl(lightNames[2], 2, timeNow);
+  for (size_t i = 0; i < 3; i++)
+  {
+    lights[i] = LightImpl(lightNames[0], 0, timeNow);
+  }
+
+  String jsonLight = conv.loadJsonString(light1Filename[0]);
+
+  String ret = conv.convertLightToJson(lights[0]);
+  // Serial.println("jsoned" + ret);
+  conv.storeJsonString(ret, light1Filename[0]);
+
+  Serial.println("loaded" + jsonLight);
 
   // Connect to Wi-Fi
   WiFi.begin(ssid, password);
@@ -136,9 +148,14 @@ void setup()
   lights[0].mOffTime[0] = timeHelper.makeTmElement("22:30");
 
   lightConverter = new LighttoFastLEDConverter{*aqLights, lights};
+  // String light1Filename = "/light1.json";
+  // ret = conv.convertLightToJson(lights[0]);
+  // // Serial.println("jsoned" + ret);
+  // conv.storeJsonString(ret, light1Filename);
 
-  LightJsonConverter conv = LightJsonConverter();
-  conv.convertLightToJson(lights[0]);
+  // String jsonLight = conv.loadJsonString(light1Filename);
+  // Serial.println("loaded" + jsonLight);
+
   // webserverPostStruct webserverPosts[2] =
   //     {{"L1ONTIME1", timeHelper.makeTimeString(lights[0].mOnTime[0])}};
 
@@ -206,7 +223,7 @@ void setup()
             });
   // Start server
   server.begin();
-  Watchdog.enable(WATCHDOG_TIMEOUT_MS);
+  // Watchdog.enable(WATCHDOG_TIMEOUT_MS);
 }
 
 void loop()

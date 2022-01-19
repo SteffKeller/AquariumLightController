@@ -1,4 +1,5 @@
 #include "LightJsonConverter.hpp"
+#include <Arduino.h>
 
 LightJsonConverter::LightJsonConverter()
 {
@@ -8,7 +9,7 @@ LightJsonConverter::~LightJsonConverter()
 {
 }
 
-void LightJsonConverter::convertLightToJson(LightImpl &light)
+String LightJsonConverter::convertLightToJson(LightImpl &light)
 {
     TimeHelper timeHelper = TimeHelper();
     // Allocate a temporary JsonDocument
@@ -25,22 +26,22 @@ void LightJsonConverter::convertLightToJson(LightImpl &light)
     doc["dimtime"] = light.mDimmTime;
     doc["dim"] = light.mDimmValueOn;
 
-    Serial.println("bla");
-    // Lastly, you can print the resulting JSON to a String
     String output;
     serializeJson(doc, output);
-    Serial.println(output);
+    return output;
+}
 
-    String path = "/" + light.getLightName() + ".json";
-    File file = SPIFFS.open(path, "w");
+void LightJsonConverter::storeJsonString(String jsonLight, String filename)
+{
+    File file = SPIFFS.open(filename, "w");
     if (!file)
     {
         Serial.println("Failed to open file for reading");
         return;
     }
 
-    int bytesWritten = file.print(output);
-
+    int bytesWritten = file.print(jsonLight);
+    file.close();
     if (bytesWritten > 0)
     {
         Serial.println("File was written");
@@ -51,15 +52,41 @@ void LightJsonConverter::convertLightToJson(LightImpl &light)
         Serial.println("File write failed");
     }
 }
-void LightJsonConverter::getLight(LightImpl &light)
+
+String LightJsonConverter::loadJsonString(String filename)
 {
-    String path = "/" + light.getLightName() + ".json";
-    File file = SPIFFS.open(path, "w");
-    file = SPIFFS.open(path);
-    Serial.println("File Content:");
+    String serialJson;
+    File file = SPIFFS.open(filename, "r");
+    if (!file)
+    {
+        Serial.println("Error opening file");
+    }
+    Serial.println("File load json:");
     while (file.available())
     {
-        Serial.write(file.read());
+
+        // Serial.write(file.read());
+        serialJson = file.readString();
     }
     file.close();
+
+    Serial.println("file loaded" + serialJson);
+
+    
+
+    return serialJson;
+}
+
+
+void LightJsonConverter::getLight(LightImpl &light)
+{
+    // String path = "/" + light.getLightName() + ".json";
+    // File file = SPIFFS.open(path, "w");
+    // file = SPIFFS.open(path);
+    // Serial.println("File Content:");
+    // while (file.available())
+    // {
+    //     Serial.write(file.read());
+    // }
+    // file.close();
 }

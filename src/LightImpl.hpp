@@ -5,6 +5,8 @@
 #include <Arduino.h>
 #include <ezTime.h>
 #include <TimeHelper.hpp>
+#include <ArduinoJson.h>
+
 class LightImpl
 {
 private:
@@ -26,6 +28,7 @@ public:
 	uint8_t getState();
 	uint8_t getFastLedPos();
 	String getLightName();
+	void loadValuesFromJsonString(String jsonString);
 
 	tmElements_t mOnTime[2];
 	tmElements_t mOffTime[2];
