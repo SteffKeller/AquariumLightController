@@ -128,6 +128,8 @@ void setup()
     lights[i] = LightImpl(lightNames[0], 0, timeNow);
   }
 
+  lights[0].mOnTime[0] = timeHelper.makeTmElement("09:45");
+  lights[0].mOffTime[0] = timeHelper.makeTmElement("15:45");
   String jsonLight = conv.loadJsonString(light1Filename[0]);
 
   String ret = conv.convertLightToJson(lights[0]);
@@ -136,6 +138,8 @@ void setup()
 
   Serial.println("loaded" + jsonLight);
 
+  lights[0].loadValuesFromJsonString(conv.loadJsonString(light1Filename[0]));
+
   // Connect to Wi-Fi
   WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED)
@@ -143,9 +147,6 @@ void setup()
     delay(1000);
     Serial.println("Connecting to WiFi..");
   }
-
-  lights[0].mOnTime[0] = timeHelper.makeTmElement("12:34");
-  lights[0].mOffTime[0] = timeHelper.makeTmElement("22:30");
 
   lightConverter = new LighttoFastLEDConverter{*aqLights, lights};
   // String light1Filename = "/light1.json";

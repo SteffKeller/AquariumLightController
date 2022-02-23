@@ -60,6 +60,7 @@ void LightImpl::loadValuesFromJsonString(String jsonString)
 {
     DynamicJsonDocument doc(1024);
     DeserializationError error = deserializeJson(doc, jsonString);
+    TimeHelper timeHelper;
 
     // Test if parsing succeeds.
     if (error)
@@ -83,13 +84,15 @@ void LightImpl::loadValuesFromJsonString(String jsonString)
     {
         mDimmValueOn = doc["dim"];
     }
-    // TODO: impl...
-    // Set the values in the document
-    // doc["name"] = light.getLightName();
-    // doc["lon"][0] = timeHelper.makeTimeString(light.mOnTime[0]);
-    // doc["lon"][1] = timeHelper.makeTimeString(light.mOnTime[1]);
-    // doc["loff"][0] = timeHelper.makeTimeString(light.mOffTime[0]);
-    // doc["loff"][1] = timeHelper.makeTimeString(light.mOffTime[1]);
-    // doc["dimtime"] = light.mDimmTime;
-    // doc["dim"] = light.mDimmValueOn;
+    for (size_t i = 0; i < 2; i++)
+    {
+        if (doc.containsKey("lon"))
+        {
+            mOnTime[i] = timeHelper.makeTmElement(doc["lon"][i]);
+        }
+        if (doc.containsKey("loff"))
+        {
+            mOffTime[i] = timeHelper.makeTmElement(doc["loff"][i]);
+        }
+    }
 }
